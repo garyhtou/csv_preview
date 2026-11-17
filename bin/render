@@ -1,0 +1,47 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+# Development script (not packaged with the gem): renders a CSV or TSV file to an image and prints
+# what the layout decided.
+#
+#   bin/render FILE.csv [-o out.png] [--format png|jpeg|webp] [--scale N]
+#
+# Without -o the image is written to the current directory as FILE's base name with the format's
+# extension. Without --format the format follows the -o extension, else PNG.
+
+require "optparse"
+
+$LOAD_PATH.unshift File.expand_path("../lib", __dir__)
+require "csv_preview"
+
+EXTENSIONS = { ".png" => :png, ".jpg" => :jpeg, ".jpeg" => :jpeg, ".webp" => :webp }.freeze
+
+output = nil
+options = {}
+parser = OptionParser.new do |opts|
+  opts.banner = "Usage: bin/render FILE.csv [-o out.png] [--format png|jpeg|webp] [--scale N]"
+  opts.on("-o", "--output PATH", "Where to write the image") { |path| output = path }
+  opts.on("--format FORMAT", %w[png jpeg webp], "png (default), jpeg or webp") { |f| options[:format] = f.to_sym }
+  opts.on("--scale N", Integer, "Pixel density, 1 to 4 (default 2)") { |n| options[:scale] = n }
+end
+parser.parse!
+
+input = ARGV.shift
+abort parser.banner if input.nil? || !ARGV.empty?
+
+options[:format] ||= EXTENSIONS.fetch(File.extname(output.to_s).downcase, :png)
+extension = { png: ".png", jpeg: ".jpg", webp: ".webp" }.fetch(options[:format])
+output ||= File.basename(input, ".*") + extension
+
+started = Process.clock_gettime(Process::CLOCK_MONOTONIC)
+bytes = CsvPreview.render(input, **options)
+seconds = Process.clock_gettime(Process::CLOCK_MONOTONIC) - started
+File.binwrite(output, bytes)
+
+layout = CsvPreview.layout(input, **options)
+warn format("%<path>s: %<w>d by %<h>d px, %<kb>.1f KB, %<ms>d ms (cold process)",
+            path: output, w: layout.width_px, h: layout.height_px, kb: bytes.bytesize / 1024.0, ms: seconds * 1000)
+warn "  #{layout.visible_columns} visible columns, peek #{layout.peek_column&.index.inspect}, " \
+     "#{layout.rows_shown} rows, #{layout.text_calls} text calls"
+warn "  footer: #{layout.footer_text.inspect}" if layout.footer_text
+warn "  message: #{layout.message.inspect}" if layout.message
