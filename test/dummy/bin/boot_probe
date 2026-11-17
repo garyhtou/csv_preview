@@ -1,0 +1,21 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+# Boots the dummy app in the scenario named by CSV_PREVIEW_SCENARIO and prints the previewer list as
+# JSON, with whether the previewer's file was loaded and whether the Railtie warmed up the fonts, so the
+# registration tests can read them from a fresh process.
+require "json"
+require "fileutils"
+
+ENV["RAILS_ENV"] = "test"
+dummy_tmp = ENV.fetch("CSV_PREVIEW_DUMMY_TMP") { File.expand_path("../../../tmp", __dir__) }
+FileUtils.mkdir_p(dummy_tmp)
+require_relative "../config/environment"
+
+previewers = ActiveStorage.previewers
+puts JSON.generate(
+  previewers: previewers.map(&:name),
+  same_object: previewers.equal?(Rails.application.config.active_storage.previewers),
+  previewer_loaded: $LOADED_FEATURES.any? { |path| path.end_with?("/csv_preview/active_storage_previewer.rb") },
+  warmed_up: CsvPreview::Text.instance_variable_get(:@warm) == true
+)

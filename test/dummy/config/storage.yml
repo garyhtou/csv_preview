@@ -1,0 +1,12 @@
+test:
+  service: Disk
+  root: <%= File.join(ENV.fetch("CSV_PREVIEW_DUMMY_TMP") { File.expand_path("../../../tmp", __dir__) }, "storage") %>
+
+alternate:
+  service: Disk
+  root: <%= File.join(ENV.fetch("CSV_PREVIEW_DUMMY_TMP") { File.expand_path("../../../tmp", __dir__) }, "storage_alternate") %>
+
+# A Disk service whose download_chunk raises NotImplementedError (see lib/active_storage/service).
+no_ranges:
+  service: NoRangesDisk
+  root: <%= File.join(ENV.fetch("CSV_PREVIEW_DUMMY_TMP") { File.expand_path("../../../tmp", __dir__) }, "storage_no_ranges") %>

@@ -1,0 +1,5 @@
+test:
+  adapter: sqlite3
+  database: <%= File.join(ENV.fetch("CSV_PREVIEW_DUMMY_TMP") { File.expand_path("../../../tmp", __dir__) }, "dummy_test.sqlite3") %>
+  pool: 10
+  timeout: 10000
