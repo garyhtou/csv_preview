@@ -1,0 +1,7 @@
+<policymap>
+  <!-- Deny every delegate and coder, then allow only what a CSV preview resize needs (active-storage.md 6). -->
+  <policy domain="delegate" rights="none" pattern="*" />
+  <policy domain="coder" rights="none" pattern="*" />
+  <policy domain="coder" rights="read|write" pattern="{JPEG,JPG,PNG,GIF,WEBP}" />
+  <policy domain="path" rights="none" pattern="@*" />
+</policymap>

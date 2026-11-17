@@ -1,0 +1,11 @@
+Label,Value
+esc_bel,abc
+del,ab
+nel,ab
+c1,ab
+vt_ff,abc
+separators,a b c
+tabs,"a	b		c"
+zwsp,a​b
+inner_bom,a﻿b
+zalgo,Ź́́́́́́́́́́́́́́́́́́́́́́́́́́́́́́́́́́́́́́́́́́́́́́́́́a

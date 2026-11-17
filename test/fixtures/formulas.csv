@@ -1,0 +1,5 @@
+Formula,Kind
+"=HYPERLINK(""http://example.com"",""x"")",hyperlink
++cmd|' /C calc'!A0,dde
+@SUM(A1:A2),at sign
+-2+3,arithmetic

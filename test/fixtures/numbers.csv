@@ -1,0 +1,9 @@
+Item,Amount,Price,Change,Other,Note
+Coffee,1234.56,"$1,234.56",-12.00,"₹1,23,456",plain
+Tea,(45.00),"1.234,56 €",12%,"R$ 12,00",euro style
+Juice,USD 12.00,"€1.234,56",+7,kr 100,with currency
+Bagel,12.00 USD,"12,50",42,0.5,short
+Muffin,−12.00,"1 234,56","1,284",.5,grouped
+Scone,"-$1,284.50","1 234,56",1.284,($45.00),spaced
+Toast,$-12.00,1'234.50,1.5e10,$(45.00),swiss
+Cocoa,0,1’234.50,-3.5 %,12.00-,trailing

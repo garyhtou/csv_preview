@@ -1,0 +1,5 @@
+Markup,Note
+<b>bold</b>,tag
+&amp;,entity
+"<span foreground=""red"">x</span>",span
+a & b,ampersand
