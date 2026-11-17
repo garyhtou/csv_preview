@@ -1,0 +1,35 @@
+name: macOS
+
+# The core suite on macOS with Homebrew's current libvips. For now this runs only by hand
+# (gh workflow run macos.yml --ref main); step 6 of docs/RELEASING.md switches it to run on every push
+# and pull request.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  core:
+    runs-on: macos-15
+    timeout-minutes: 30
+    env:
+      BUNDLE_GEMFILE: gemfiles/no_rails.gemfile
+      # PS-31: at least 20,000 seeded fuzz inputs per CI run (the local default is 3,000).
+      CSV_PREVIEW_FUZZ_ITERATIONS: "20000"
+      HOMEBREW_NO_AUTO_UPDATE: "1"
+      HOMEBREW_NO_INSTALL_CLEANUP: "1"
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install libvips
+        run: brew install vips
+      - uses: ruby/setup-ruby@b3aaceaef7e0ee231b499e7b5f49c03fc1d32199 # v1.338.0
+        with:
+          ruby-version: "4.0"
+          bundler-cache: true
+      - name: Versions
+        run: |
+          bundle exec ruby -rvips -rcsv -e 'puts "libvips #{Vips.version_string}, ruby-vips #{Vips::VERSION}, csv #{CSV::VERSION}"'
+      - run: bundle exec rake test

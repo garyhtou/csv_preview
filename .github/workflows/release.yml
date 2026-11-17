@@ -1,0 +1,39 @@
+name: Release
+
+# Publishes the gem to RubyGems.org when a v* tag is pushed (branding-and-discoverability.md 5.4).
+# Trusted publishing exchanges a short-lived GitHub OIDC token for a push-only RubyGems credential, so no
+# API key exists anywhere, and rubygems/release-gem uploads Sigstore attestations with the gem. The job
+# runs in the protected "release" environment, whose required reviewer is the maintainer, so a tag
+# alone cannot publish. One-time setup before the first tag: create the "release" environment with a
+# required reviewer, and a pending trusted publisher on RubyGems.org for this repository, workflow
+# release.yml and environment release.
+on:
+  push:
+    tags: ["v*"]
+
+permissions: {}
+
+jobs:
+  release:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    environment: release
+    permissions:
+      contents: read # the tag already exists, so rake release pushes nothing to GitHub
+      id-token: write # trusted publishing and attestations
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: ruby/setup-ruby@b3aaceaef7e0ee231b499e7b5f49c03fc1d32199 # v1.338.0
+        with:
+          ruby-version: ruby
+          bundler-cache: true
+      - name: Check the tag matches the gem version
+        run: |
+          version="$(ruby -Ilib -rcsv_preview/version -e 'print CsvPreview::VERSION')"
+          if [ "v$version" != "$GITHUB_REF_NAME" ]; then
+            echo "Tag $GITHUB_REF_NAME does not match CsvPreview::VERSION $version" >&2
+            exit 1
+          fi
+      - uses: rubygems/release-gem@5c53f5308233b7c0f47411f0471b3faae6fa57b2 # v1.4.2

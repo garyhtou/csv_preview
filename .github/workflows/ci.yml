@@ -1,0 +1,99 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  # The core suite (rake test), which never loads Rails. Linux only; macOS runs in macos.yml.
+  core:
+    name: core (${{ matrix.os }}, Ruby ${{ matrix.ruby }}, ${{ matrix.gemfile }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # libvips 8.12.1 and Pango 1.50, the oldest supported, with fontconfig 2.13. A system Inter is
+          # installed so the bundled files must win over a same-name font (rendering.md 5.4).
+          - { os: ubuntu-22.04, ruby: "3.3", gemfile: no_rails, system_inter: true }
+          # csv 3.2.8, the gemspec floor (PS-36).
+          - { os: ubuntu-24.04, ruby: "3.3", gemfile: csv_floor }
+          # The pinned golden image: goldens are compared byte for byte only here (rendering.md 11).
+          # Its packages must match goldens.yml. Also runs rake docs:check (branding 4.9).
+          - { os: ubuntu-24.04, ruby: "3.4", gemfile: no_rails, golden: exact, docs: true }
+          # Newest Ruby, with fontconfig 2.15 and a system Inter installed.
+          - { os: ubuntu-24.04, ruby: "4.0", gemfile: no_rails, system_inter: true }
+          # ruby-vips 2.2.2, the gemspec floor, on libvips 8.15. Ruby 4.0 because that is why the floor is
+          # 2.2.2: 2.2.1 cannot load on Ruby 4.0 (rendering.md 9).
+          - { os: ubuntu-24.04, ruby: "4.0", gemfile: ruby_vips_floor }
+    env:
+      BUNDLE_GEMFILE: gemfiles/${{ matrix.gemfile }}.gemfile
+      CSV_PREVIEW_GOLDEN: ${{ matrix.golden }}
+      # PS-31: at least 20,000 seeded fuzz inputs per CI run (the local default is 3,000).
+      CSV_PREVIEW_FUZZ_ITERATIONS: "20000"
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install libvips, fonts and strace
+        run: sudo apt-get update && sudo apt-get install -y libvips-dev fonts-noto-color-emoji fonts-noto-cjk strace
+      - name: Install a system Inter
+        if: matrix.system_inter
+        run: |
+          sudo apt-get install -y fonts-inter
+          fc-list :family=Inter file | grep .
+      - uses: ruby/setup-ruby@b3aaceaef7e0ee231b499e7b5f49c03fc1d32199 # v1.338.0
+        with:
+          ruby-version: ${{ matrix.ruby }}
+          bundler-cache: true
+      - name: Versions
+        run: |
+          bundle exec ruby -rvips -rcsv -e 'puts "libvips #{Vips.version_string}, ruby-vips #{Vips::VERSION}, csv #{CSV::VERSION}"'
+      - run: bundle exec rake test
+      # The README, gemspec, llms.txt and agent skill agree, their links resolve, the security table's
+      # tests exist, and the public API is documented. Once is enough: none of it depends on the matrix.
+      - name: Docs check
+        if: matrix.docs
+        run: bundle exec rake docs:check
+
+  # The Active Storage suite (rake test:rails) on each supported Rails series (active-storage.md 9.2).
+  rails:
+    name: rails (${{ matrix.gemfile }}, Ruby ${{ matrix.ruby }}, ${{ matrix.variant_processor }})
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { gemfile: rails_7_2, ruby: "3.3", variant_processor: vips }
+          - { gemfile: rails_8_0, ruby: "3.4", variant_processor: vips }
+          - { gemfile: rails_8_1, ruby: "3.4", variant_processor: vips }
+          # Newest Ruby, with MiniMagick as the dummy app's variant processor under the locked-down
+          # ImageMagick policy. AS-19 runs both processors in every job.
+          - { gemfile: rails_8_1, ruby: "4.0", variant_processor: mini_magick }
+    env:
+      BUNDLE_GEMFILE: gemfiles/${{ matrix.gemfile }}.gemfile
+      VARIANT_PROCESSOR: ${{ matrix.variant_processor }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install libvips, ImageMagick and fonts
+        run: sudo apt-get update && sudo apt-get install -y libvips-dev imagemagick fonts-noto-color-emoji fonts-noto-cjk
+      - name: Use the locked-down ImageMagick policy
+        if: matrix.variant_processor == 'mini_magick'
+        run: echo "MAGICK_CONFIGURE_PATH=$GITHUB_WORKSPACE/test/support/imagemagick" >> "$GITHUB_ENV"
+      - uses: ruby/setup-ruby@b3aaceaef7e0ee231b499e7b5f49c03fc1d32199 # v1.338.0
+        with:
+          ruby-version: ${{ matrix.ruby }}
+          bundler-cache: true
+      - run: bundle exec rake test:rails

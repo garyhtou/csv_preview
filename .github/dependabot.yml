@@ -1,0 +1,18 @@
+version: 2
+updates:
+  # The gemspec's runtime dependencies (csv, ruby-vips) and the development Gemfile. Gemfile.lock is
+  # git-ignored, so Dependabot only proposes updates that widen a requirement (a new csv or ruby-vips
+  # major outside the gemspec's range); it never proposes in-range releases. Those are covered by the
+  # CI jobs that resolve the newest csv and ruby-vips on every run.
+  - package-ecosystem: bundler
+    directory: /
+    schedule:
+      interval: weekly
+  # Actions are pinned by commit SHA; Dependabot moves the SHA and the version comment together.
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      actions:
+        patterns: ["*"]
