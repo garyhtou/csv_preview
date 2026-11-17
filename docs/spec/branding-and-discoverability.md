@@ -194,13 +194,21 @@ Writing rules for the README: answer first in every section (the first 40 to 60 
 ### 3.2 Above the fold (draft)
 
 ````markdown
-<img align="right" width="96" height="96" alt="" src="https://raw.githubusercontent.com/garyhtou/csv_preview/main/docs/assets/brand/mark-512.png">
+<p align="center">
+  <img width="96" height="96" alt="" src="https://raw.githubusercontent.com/garyhtou/csv_preview/main/docs/assets/brand/mark-512.png">
+</p>
 
-# csv_preview
+<h1 align="center">csv_preview</h1>
 
-**Beautiful CSV previews for Active Storage.** No LibreOffice, no headless browser, no network.
+<p align="center">
+  <strong>Beautiful CSV previews for Active Storage.</strong> No LibreOffice, no headless browser, no network.
+</p>
 
-[![CI](https://github.com/garyhtou/csv_preview/actions/workflows/ci.yml/badge.svg)](https://github.com/garyhtou/csv_preview/actions/workflows/ci.yml) [![Gem Version](https://img.shields.io/gem/v/csv_preview)](https://rubygems.org/gems/csv_preview) [![License: MIT](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
+<p align="center">
+  <a href="https://github.com/garyhtou/csv_preview/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/garyhtou/csv_preview/actions/workflows/ci.yml/badge.svg"></a>
+  <a href="https://rubygems.org/gems/csv_preview"><img alt="Gem Version" src="https://img.shields.io/gem/v/csv_preview"></a>
+  <a href="LICENSE"><img alt="License: MIT" src="https://img.shields.io/badge/license-MIT-blue"></a>
+</p>
 
 csv_preview is a Ruby gem that renders CSV and TSV files as preview images (PNG, JPEG or WebP) and adds an Active Storage previewer to Rails. CSV attachments get thumbnails and previews the same way images, PDFs and videos do. It draws text with libvips and Pango and is built for files uploaded by strangers.
 
