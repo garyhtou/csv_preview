@@ -1,0 +1,60 @@
+{
+ "font": "Inter",
+ "scale": 2,
+ "width": 1024,
+ "font_size": 13.5,
+ "header_size": 12.5,
+ "header_weight": 600,
+ "header_text": "#475467",
+ "text": "#101828",
+ "muted": "#667085",
+ "bg": "#FFFFFF",
+ "canvas": "#EEF1F5",
+ "header_fill": null,
+ "header_rule": 1,
+ "header_rule_color": "#344054",
+ "row_rule": 1,
+ "row_rule_color": "#EAECF0",
+ "top_rule": 2,
+ "top_rule_color": "#344054",
+ "bottom_rule": 2,
+ "bottom_rule_color": "#344054",
+ "rule_inset": 24,
+ "row_h": 38,
+ "header_h": 40,
+ "pad_x": 12,
+ "edge_pad": 24,
+ "min_col_w": 56,
+ "max_col_w": 280,
+ "true_minus": true,
+ "title_h": 76,
+ "title": "statement-march-2026.csv",
+ "title_size": 17,
+ "title_meta": "20 rows \u00b7 23 columns",
+ "title_stack": true,
+ "fade_w": 72,
+ "fade_h": 0,
+ "footer_h": 40,
+ "footer": "Showing the first {shown} rows and leftmost columns",
+ "meta_size": 12,
+ "max_rows": 10,
+ "frame": {
+  "padding": 32,
+  "radius": 14,
+  "border": "#E4E7EC",
+  "border_w": 1,
+  "shadow": [
+   [
+    1,
+    2,
+    18
+   ],
+   [
+    10,
+    28,
+    24
+   ]
+  ]
+ },
+ "date_tnum": false
+}

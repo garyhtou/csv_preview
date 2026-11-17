@@ -1,0 +1,12 @@
+/.bundle/
+/vendor/bundle/
+/pkg/
+/tmp/
+/coverage/
+*.gem
+Gemfile.lock
+.DS_Store
+docs/design/mockups/.textcache/
+gemfiles/*.lock
+.yardoc/
+/doc/
