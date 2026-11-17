@@ -606,6 +606,8 @@ jobs:
 
 **Environment setup order.** Create the GitHub `release` environment (Settings > Environments) with a deployment rule that limits it to `v*` tags **before** creating the pending trusted publisher on RubyGems.org: a workflow that names an environment that does not exist creates it automatically and unprotected, so the order matters. Required reviewers on an environment are available only when the repository is public (or on GitHub Enterprise); while the repository is private, the protection is the `v*` tag rule alone, and the reviewer is added when the repository goes public. The pending publisher is configured for this repository, the workflow file `release.yml` and the environment `release`.
 
+**Owner assertion.** As of November 2026, a pending trusted publisher is valid for about 12 hours, and RubyGems.org creates the gem only if the token exchange names the account that will own it (an `owner` field holding the account's numeric ID or handle). `rubygems/release-gem` v1.4.2 and the `configure-rubygems-credentials` v2.1.0 it uses do not send that field, so `release.yml` performs the same exchange in a shell step with `owner` added and runs `release-gem` with `setup-trusted-publisher: false`. Return to the action's built-in step when it gains an owner input.
+
 Release checklist: CHANGELOG entry dated; version bumped; `rake docs:check` green; brand images regenerated if rendering changed; tag pushed; approval given; gem page shows provenance and MFA; GitHub Release created with the CHANGELOG entry.
 
 ### 5.5 CHANGELOG, SemVer and support policy

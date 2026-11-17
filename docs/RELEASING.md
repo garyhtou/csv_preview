@@ -89,6 +89,11 @@ gh api -X POST repos/garyhtou/csv_preview/environments/release/deployment-branch
 
    The first successful push turns the pending publisher into a normal one and makes you the gem's owner. No API key is created or stored anywhere.
 
+   Two things the publisher page tells you once it is saved:
+
+   - **It is valid for about 12 hours.** Do the first release within that window, or delete and recreate it.
+   - **The workflow must name the owner.** RubyGems.org shows your account's numeric ID and rejects a first push whose token exchange does not include it. `release.yml` does the exchange itself and sends that ID as `owner` (the `RUBYGEMS_OWNER` value), because `rubygems/release-gem` has no owner input yet. If you are not the account with the ID in `release.yml`, change it to the ID your publisher page shows.
+
 ### 6. Run the macOS workflow on every push
 
 While the repository was private, `.github/workflows/macos.yml` ran only by hand, because macOS minutes cost ten times Linux minutes on private repositories. They are free on public ones, so change the trigger (and the header comment above it, which describes the manual-only setup):
