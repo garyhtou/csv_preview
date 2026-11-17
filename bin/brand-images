@@ -1,0 +1,454 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+# Development and CI script (not packaged with the gem): regenerates the brand and README images in
+# docs/assets/ (docs/spec/branding-and-discoverability.md section 2). Every table in them is drawn by
+# CsvPreview.render from a fixture in test/fixtures/; ruby-vips does the rest (the mark is an SVG
+# loaded by libvips, the headline text is drawn with the bundled Inter and the gem's greyscale
+# antialiasing, and composition is libvips only). The committed images come from the pinned CI image
+# (.github/workflows/brand-images.yml), the same environment as the goldens, so outside CI (no CI
+# variable) it refuses to write docs/assets/ unless CSV_PREVIEW_BRAND_FORCE=1 is set. Local previews go
+# to another directory:
+#
+#   bundle exec bin/brand-images --out tmp/brand
+
+require "csv"
+require "fileutils"
+require "json"
+require "optparse"
+require "stringio"
+
+$LOAD_PATH.unshift File.expand_path("../lib", __dir__)
+require "csv_preview" # first: on macOS it selects the fontconfig backend before anything draws text
+require "vips"
+
+module BrandImages
+  ROOT = File.expand_path("..", __dir__)
+  FIXTURES = File.join(ROOT, "test", "fixtures")
+  DEFAULT_OUT = File.join(ROOT, "docs", "assets")
+
+  # Palette (branding-and-discoverability.md 2.2). The neutrals are the Ledger theme's own tokens.
+  INK = "#1F2328"
+  SLATE = "#5B6472"
+  MUTED = "#6B7280"
+  HEADER_FILL = "#EEF0F3"
+  RULE = "#DDE1E6"
+  RULE_LIGHT = "#EDEFF2"
+  PAPER = "#FFFFFF"
+  CANVAS = "#F4F5F7"
+  ACCENT = "#0E7C66"
+  INK_ON_DARK = "#E6EDF3"
+  ACCENT_ON_DARK = "#3FB9A0"
+  # Outline around README images, so a white render looks intentional on GitHub's dark themes (2.6).
+  OUTLINE = "#D0D7DE"
+  # Grey bars standing in for body text in the mark: lighter than the header labels because they are
+  # thicker, the way Ledger's body text is larger than its header labels.
+  BAR = "#AEB6C0"
+
+  TAGLINE = "Beautiful CSV previews for Active Storage."
+  STACK_LINE = "Ruby gem · libvips · no LibreOffice"
+
+  # The README hero and gallery (2.6). The hero is shown at width 720; gallery images at their logical
+  # size (pixel width divided by the render scale, 2).
+  HERO = { fixture: "wide_long", options: { max_rows: 10 }, display_width: 720 }.freeze
+  GALLERY = %w[numbers emoji_cjk simple semicolon_decimal_comma].freeze
+  # The thumbnail strip: the hero and three gallery renders, each cut with the README's thumbnail recipe.
+  # wide_long is the hero's 10-row render: the full 20-row render is nearly square, so the recipe can only
+  # shrink all of it to 15% and its text becomes texture, while the 10-row render keeps 35% and a readable
+  # header band.
+  THUMBNAILS = [[HERO[:fixture], HERO[:options]], ["numbers", {}], ["emoji_cjk", {}], ["simple", {}]].freeze
+  THUMBNAIL_SIZE = 300
+
+  # The social preview's table: columns of test/fixtures/statement.csv, reordered so the right-aligned
+  # amounts land in the part of the card that shows and the next columns run into the fade.
+  SOCIAL_COLUMNS = ["Transaction Date", "Amount", "Description", "Category", "Card", "Merchant City"].freeze
+  # Canvas showing between the end of the social preview's table (where its fade reaches white) and the
+  # right edge, in px. The white card itself runs on past the edge.
+  FADE_MARGIN = 40
+
+  module_function
+
+  def run(out)
+    FileUtils.mkdir_p([File.join(out, "brand"), File.join(out, "gallery")])
+    CsvPreview::Text.warm_up!
+    unless CsvPreview::Text.bundled_font_active?
+      abort "bin/brand-images: the bundled Inter is not active, so the images would use a fallback font."
+    end
+
+    manifest = { "generator" => "bin/brand-images", "csv_preview" => CsvPreview::VERSION,
+                 "libvips" => Vips.version_string, "images" => {} }
+    record = lambda do |path, image, **facts|
+      write(File.join(out, path), image)
+      manifest["images"][path] = { "width" => image.width, "height" => image.height }.merge(facts.transform_keys(&:to_s))
+      puts "wrote #{path} (#{image.width}x#{image.height})"
+    end
+
+    File.write(File.join(out, "brand", "mark.svg"), mark_svg)
+    puts "wrote brand/mark.svg"
+    { 16 => mark_16_svg, 32 => mark_32_svg, 180 => mark_svg, 512 => mark_svg }.each do |size, svg|
+      record.call("brand/mark-#{size}.png", svg_image(svg, size: size))
+    end
+    record.call("brand/wordmark-light.png", wordmark(INK, ACCENT), use: "on light backgrounds")
+    record.call("brand/wordmark-dark.png", wordmark(INK_ON_DARK, ACCENT_ON_DARK), use: "on dark backgrounds")
+
+    hero = render(fixture(HERO[:fixture]), **HERO[:options])
+    record.call("hero.png", framed(hero, display_width: HERO[:display_width]),
+                **render_facts(HERO[:fixture], HERO[:options], HERO[:display_width]))
+
+    GALLERY.each do |name|
+      image = render(fixture(name))
+      record.call("gallery/#{name}.png", framed(image, display_width: image.width / 2),
+                  **render_facts(name, {}, image.width / 2))
+    end
+
+    record.call("gallery/thumbnails.png", thumbnail_strip, display_width: 640,
+                fixtures: THUMBNAILS.map { |name, _| "test/fixtures/#{name}.csv" },
+                options: THUMBNAILS.map { |_, options| options },
+                recipe: "resize_to_fill: [#{THUMBNAIL_SIZE}, #{THUMBNAIL_SIZE}, { crop: :low }]",
+                caption: "Thumbnails rendered by csv_preview #{CsvPreview::VERSION} from " \
+                         "#{THUMBNAILS.map { |name, options| fixture_label(name, options) }.join(", ")}, " \
+                         "cut to #{THUMBNAIL_SIZE} px with `crop: :low`")
+
+    record.call("brand/social-preview.png", social_preview, source: "test/fixtures/statement.csv",
+                columns: SOCIAL_COLUMNS)
+
+    File.write(File.join(out, "manifest.json"), "#{JSON.pretty_generate(manifest)}\n")
+    puts "wrote manifest.json"
+  end
+
+  # --- Rendering with the gem ---------------------------------------------------------------------
+
+  def fixture(name) = File.join(FIXTURES, "#{name}.csv")
+
+  def render(source, **options) = Vips::Image.new_from_buffer(CsvPreview.render(source, **options), "")
+
+  # Facts for README captions and alt text: the version and fixture that produced the image (2.4), and
+  # the real counts the alt text should state (2.6).
+  def render_facts(name, options, display_width)
+    layout = CsvPreview.layout(fixture(name), **options)
+    sample = layout.sample
+    call = (["\"test/fixtures/#{name}.csv\""] + options.map { |key, value| "#{key}: #{value}" }).join(", ")
+    {
+      display_width: display_width,
+      source: "test/fixtures/#{name}.csv",
+      options: options,
+      caption: "Rendered by csv_preview #{CsvPreview::VERSION} from #{fixture_label(name, options)}",
+      reproduce: "CsvPreview.render(#{call})",
+      rows_shown: layout.rows_shown,
+      total_rows: sample.total_rows,
+      columns_shown: layout.visible_columns,
+      total_columns: sample.total_columns,
+      fading_column: layout.peek_column ? sample.headers&.fetch(layout.peek_column.index, nil) : nil,
+      footer: layout.footer_text
+    }
+  end
+
+  # "`test/fixtures/NAME.csv`", followed by the options in parentheses when there are any.
+  def fixture_label(name, options)
+    label = "`test/fixtures/#{name}.csv`"
+    options.empty? ? label : "#{label} (#{options.map { |key, value| "`#{key}: #{value}`" }.join(", ")})"
+  end
+
+  # --- The mark (2.3) -----------------------------------------------------------------------------
+
+  # The master: a tiny Ledger render on a 512 grid. White card in a rounded square (radius 22% of the
+  # side) with a Rule border; a header band in Header fill with a darker rule; three body rows split by
+  # thin rules; long grey bars for a text column, short Accent bars right-aligned for a number column,
+  # and a third column fading out at the right edge like the Ledger fade.
+  def mark_svg
+    band = 128
+    radius = 112.64
+    border = 10
+    text_bars = [168, 120, 148]
+    number_bars = [84, 56, 72]
+    peek_bars = [140, 108, 124]
+    number_right = 344
+    peek_x = 392
+    rows = (0..2).flat_map do |i|
+      top = band * (i + 1)
+      y = top + (band / 2) - 13
+      [
+        (%(<rect y="#{top}" width="512" height="6" fill="#{RULE_LIGHT}"/>) unless i.zero?),
+        %(<rect x="64" y="#{y}" width="#{text_bars[i]}" height="26" rx="4" fill="#{BAR}"/>),
+        %(<rect x="#{number_right - number_bars[i]}" y="#{y}" width="#{number_bars[i]}" height="26" rx="4" fill="#{ACCENT}"/>),
+        %(<rect x="#{peek_x}" y="#{y}" width="#{peek_bars[i]}" height="26" rx="4" fill="#{BAR}"/>)
+      ].compact
+    end
+    <<~SVG
+      <svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
+        <title>csv_preview</title>
+        <defs>
+          <clipPath id="card"><rect width="512" height="512" rx="#{radius}"/></clipPath>
+          <linearGradient id="fade" x1="0" y1="0" x2="1" y2="0">
+            #{fade_stops.join("\n      ")}
+          </linearGradient>
+        </defs>
+        <g clip-path="url(#card)">
+          <rect width="512" height="512" fill="#{PAPER}"/>
+          <rect width="512" height="#{band}" fill="#{HEADER_FILL}"/>
+          <rect y="#{band - 8}" width="512" height="8" fill="#{RULE}"/>
+          <rect x="64" y="52" width="104" height="18" rx="3" fill="#{SLATE}"/>
+          <rect x="#{number_right - 64}" y="52" width="64" height="18" rx="3" fill="#{SLATE}"/>
+          <rect x="#{peek_x}" y="52" width="92" height="18" rx="3" fill="#{SLATE}"/>
+          #{rows.join("\n    ")}
+          <rect x="360" width="152" height="512" fill="url(#fade)"/>
+        </g>
+        <rect x="#{border / 2}" y="#{border / 2}" width="#{512 - border}" height="#{512 - border}" rx="#{radius - (border / 2)}" fill="none" stroke="#{RULE}" stroke-width="#{border}"/>
+      </svg>
+    SVG
+  end
+
+  # The Ledger fade: opacity at fraction t of its width is t ** 1.5 (rendering.md 2.2).
+  def fade_stops(steps = 8)
+    (0..steps).map do |i|
+      t = i.to_f / steps
+      %(<stop offset="#{t.round(3)}" stop-color="#{PAPER}" stop-opacity="#{(t**1.5).round(3)}"/>)
+    end
+  end
+
+  # 32 px, hand-tuned on the pixel grid: two rows, no fade, no third column. The border and header rule
+  # are one step darker than the master's so they still read at this size.
+  def mark_32_svg
+    <<~SVG
+      <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32">
+        <defs><clipPath id="card"><rect width="32" height="32" rx="7"/></clipPath></defs>
+        <g clip-path="url(#card)" shape-rendering="crispEdges">
+          <rect width="32" height="32" fill="#{PAPER}"/>
+          <rect width="32" height="11" fill="#{HEADER_FILL}"/>
+          <rect y="10" width="32" height="1" fill="#{OUTLINE}"/>
+          <rect x="6" y="5" width="8" height="2" fill="#{SLATE}"/>
+          <rect x="21" y="5" width="5" height="2" fill="#{SLATE}"/>
+          <rect x="6" y="15" width="10" height="2" fill="#{BAR}"/>
+          <rect x="19" y="15" width="7" height="2" fill="#{ACCENT}"/>
+          <rect y="21" width="32" height="1" fill="#{RULE_LIGHT}"/>
+          <rect x="6" y="25" width="8" height="2" fill="#{BAR}"/>
+          <rect x="21" y="25" width="5" height="2" fill="#{ACCENT}"/>
+        </g>
+        <rect x="0.5" y="0.5" width="31" height="31" rx="6.5" fill="none" stroke="#{OUTLINE}"/>
+      </svg>
+    SVG
+  end
+
+  # 16 px, hand-tuned: only the header band and two right-aligned Accent bars.
+  def mark_16_svg
+    <<~SVG
+      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16">
+        <defs><clipPath id="card"><rect width="16" height="16" rx="3.5"/></clipPath></defs>
+        <g clip-path="url(#card)" shape-rendering="crispEdges">
+          <rect width="16" height="16" fill="#{PAPER}"/>
+          <rect width="16" height="6" fill="#{HEADER_FILL}"/>
+          <rect y="5" width="16" height="1" fill="#{OUTLINE}"/>
+          <rect x="6" y="8" width="7" height="2" fill="#{ACCENT}"/>
+          <rect x="9" y="11" width="4" height="2" fill="#{ACCENT}"/>
+        </g>
+        <rect x="0.5" y="0.5" width="15" height="15" rx="3" fill="none" stroke="#{OUTLINE}"/>
+      </svg>
+    SVG
+  end
+
+  def svg_image(svg, size:)
+    natural = svg[/width="(\d+)"/, 1].to_f
+    image = Vips::Image.svgload_buffer(svg, scale: size / natural)
+    raise "mark rendered at #{image.width}x#{image.height}, expected #{size}" unless image.width == size && image.height == size
+
+    image
+  end
+
+  # --- Text ---------------------------------------------------------------------------------------
+
+  # +markup+ in +color+ with the bundled Inter (registered by CsvPreview::Text.warm_up!). +size+ is in
+  # px. Returns an RGBA image cropped to the ink; +yoffset+ is the ink top relative to the line top.
+  # Where libvips draws subpixel (coloured) edges, the text gets the gem's greyscale correction, like the
+  # tables (rendering.md section 9).
+  def text(markup, size:, color:, weight: 400)
+    image = draw_text(colored(markup, color), size: size, weight: weight)
+    CsvPreview::Text.subpixel_antialiasing? ? CsvPreview::Text.recolor(image, color) : image
+  end
+
+  # One libvips text call, as drawn.
+  def draw_text(markup, size:, weight:)
+    fontfile = weight >= 600 ? CsvPreview::Text::SEMIBOLD : CsvPreview::Text::REGULAR
+    Vips::Image.text(%(<span weight="#{weight}">#{markup}</span>), font: "Inter, #{size}", fontfile: fontfile,
+                                                                   dpi: 72, rgba: true)
+  end
+
+  # Inter's display sizes read better slightly tightened (about -0.02 em at 64 px).
+  def tracked(string, size:, em:)
+    %(<span letter_spacing="#{(size * em * 1024).round}">#{CsvPreview::Text.escape(string)}</span>)
+  end
+
+  def colored(markup, color) = %(<span foreground="#{color}">#{markup}</span>)
+
+  # Distance from the line top to the baseline for +size+ and +weight+, from the ink of "H".
+  def baseline(size:, weight: 400)
+    @baselines ||= {}
+    @baselines[[size, weight]] ||= begin
+      probe = text("H", size: size, color: INK, weight: weight)
+      probe.yoffset + probe.height
+    end
+  end
+
+  # Places +image+ (from #text) on +base+ with its baseline at +y+ and its line origin at +x+.
+  def place_text(base, image, x:, baseline_y:, size:, weight: 400)
+    top = baseline_y - baseline(size: size, weight: weight) + image.yoffset
+    base.composite2(image, :over, x: x + image.xoffset, y: top)
+  end
+
+  # csv_preview in Inter SemiBold, the underscore in the accent (2.3), at 2x for a 64 px wordmark: the
+  # ink with an even margin on a transparent background.
+  def wordmark(ink, accent, size: 128)
+    ink_image = wordmark_text(ink, accent, size)
+    pad = size / 8
+    transparent(ink_image.width + (2 * pad), ink_image.height + (2 * pad)).composite2(ink_image, :over, x: pad, y: pad)
+  end
+
+  # The wordmark's text, in two colours. With subpixel edges, the pixels that change when the accent
+  # changes are the underscore's: they take the accent and the rest take the ink, each keeping its
+  # coverage.
+  def wordmark_text(ink, accent, size)
+    image = draw_text(wordmark_markup(ink, accent, size), size: size, weight: 600)
+    return image unless CsvPreview::Text.subpixel_antialiasing?
+
+    other = draw_text(wordmark_markup(ink, CsvPreview::Text.contrast_color(accent), size), size: size, weight: 600)
+    underscore = image.relational(other, :noteq).bandor
+    underscore.ifthenelse(CsvPreview::Text.recolor(image, accent), CsvPreview::Text.recolor(image, ink))
+              .copy(interpretation: :srgb, xoffset: image.xoffset, yoffset: image.yoffset)
+  end
+
+  def wordmark_markup(ink, accent, size)
+    colored(tracked("csv", size: size, em: -0.02), ink) + colored(tracked("_", size: size, em: -0.02), accent) +
+      colored(tracked("preview", size: size, em: -0.02), ink)
+  end
+
+  # --- Composition --------------------------------------------------------------------------------
+
+  def rgb(hex) = hex.scan(/\h\h/).map(&:hex)
+
+  def solid(width, height, hex)
+    Vips::Image.black(width, height).new_from_image(rgb(hex)).copy(interpretation: :srgb).cast(:uchar)
+  end
+
+  def transparent(width, height)
+    Vips::Image.black(width, height, bands: 4).copy(interpretation: :srgb).cast(:uchar)
+  end
+
+  # A render with rounded corners (12 px at display size) and a 1 px #D0D7DE outline, on a transparent
+  # canvas, so one file looks intentional on GitHub light, dark and dark dimmed (2.6). No shadow.
+  def framed(image, display_width:, radius: 12, outline: 1)
+    factor = image.width.to_f / display_width
+    rounded(image, radius: radius * factor, outline: [(outline * factor).round, 1].max)
+  end
+
+  def rounded(image, radius:, outline:)
+    width = image.width
+    height = image.height
+    mask = Vips::Image.svgload_buffer(<<~SVG)[3]
+      <svg xmlns="http://www.w3.org/2000/svg" width="#{width}" height="#{height}">
+        <rect width="#{width}" height="#{height}" rx="#{radius.round(2)}" fill="#000"/>
+      </svg>
+    SVG
+    stroke = Vips::Image.svgload_buffer(<<~SVG)
+      <svg xmlns="http://www.w3.org/2000/svg" width="#{width}" height="#{height}">
+        <rect x="#{outline / 2.0}" y="#{outline / 2.0}" width="#{width - outline}" height="#{height - outline}"
+              rx="#{(radius - (outline / 2.0)).round(2)}" fill="none" stroke="#{OUTLINE}" stroke-width="#{outline}"/>
+      </svg>
+    SVG
+    opaque = image.has_alpha? ? image.flatten(background: rgb(PAPER)) : image
+    opaque.bandjoin(mask).copy(interpretation: :srgb).composite2(stroke, :over).cast(:uchar)
+  end
+
+  # The THUMBNAILS renders at the default size, each cut the way the README's thumbnail recipe cuts
+  # it (resize_to_fill to 300 by 300 with crop: :low keeps the top-left corner), side by side, 1280 wide.
+  def thumbnail_strip
+    gap = 20
+    margin = 10
+    count = THUMBNAILS.size
+    width = (2 * margin) + (count * THUMBNAIL_SIZE) + ((count - 1) * gap)
+    raise "thumbnail strip is #{width} px wide, expected 1280" unless width == 1280
+
+    strip = transparent(width, THUMBNAIL_SIZE + (2 * margin))
+    THUMBNAILS.each_with_index do |(name, options), i|
+      bytes = CsvPreview.render(fixture(name), **options)
+      thumb = Vips::Image.thumbnail_buffer(bytes, THUMBNAIL_SIZE, height: THUMBNAIL_SIZE, crop: :low)
+      card = rounded(thumb, radius: 16, outline: 2)
+      strip = strip.composite2(card, :over, x: margin + (i * (THUMBNAIL_SIZE + gap)), y: margin)
+    end
+    strip.cast(:uchar)
+  end
+
+  # 1280 by 640 on a solid Canvas background (2.5). Left column (x 80 to 560): the mark, the wordmark,
+  # the tagline over two lines and the stack line. Right: a real Ledger render of a statement export as
+  # a white card bleeding off the right and bottom edges.
+  def social_preview
+    width = 1280
+    height = 640
+    left = 80
+    image = solid(width, height, CANVAS)
+
+    # The render ends FADE_MARGIN px before the canvas edge, so its whole right-edge fade shows and the
+    # last column dissolves into the card instead of being cut by the edge. Its own right frame line is
+    # cropped off (the fade ends there, at the background), and white padding continues the card past
+    # the edge with its rounded right corners off the canvas. It is rendered at scale 2 and halved, so
+    # it is drawn at the default look's logical size.
+    card_x = 624
+    card_y = 96
+    table_width = width - FADE_MARGIN - card_x
+    table = render(social_table, max_width_px: table_width * 2)
+    frame = CsvPreview::Theme::LEDGER.rule_px(:frame_width, 2)
+    table = table.crop(0, 0, table.width - frame, table.height).resize(0.5, kernel: :lanczos3)
+    table = table.embed(0, 0, width - card_x + 32, table.height, extend: :background, background: rgb(PAPER))
+    image = image.composite2(rounded(table, radius: 14, outline: 1), :over, x: card_x, y: card_y)
+
+    image = image.composite2(svg_image(mark_svg, size: 72), :over, x: left, y: 96)
+
+    wordmark_size = 64
+    words = wordmark_text(INK, ACCENT, wordmark_size)
+    image = place_text(image, words, x: left - 3, baseline_y: 262, size: wordmark_size, weight: 600)
+
+    tagline_size = 40
+    first, second = tagline_lines
+    [first, second].each_with_index do |line, i|
+      run = text(tracked(line, size: tagline_size, em: -0.01), size: tagline_size, color: SLATE)
+      raise "tagline line #{i + 1} is #{run.width} px wide, more than 480" if run.xoffset + run.width > 480
+
+      image = place_text(image, run, x: left - 2, baseline_y: 340 + (i * 52), size: tagline_size)
+    end
+
+    stack_size = 26
+    image = place_text(image, text(CsvPreview::Text.escape(STACK_LINE), size: stack_size, color: MUTED),
+                       x: left - 1, baseline_y: 544, size: stack_size)
+    image.extract_band(0, n: 3).cast(:uchar)
+  end
+
+  def tagline_lines
+    words = TAGLINE.split
+    [words[0..2].join(" "), words[3..].join(" ")]
+  end
+
+  # statement.csv with the columns in SOCIAL_COLUMNS order, as CSV text for CsvPreview.render.
+  def social_table
+    table = CSV.read(fixture("statement"), headers: true, encoding: "UTF-8")
+    StringIO.new(CSV.generate do |csv|
+      csv << SOCIAL_COLUMNS
+      table.each { |row| csv << SOCIAL_COLUMNS.map { |column| row.fetch(column) } }
+    end)
+  end
+
+  def write(path, image)
+    FileUtils.mkdir_p(File.dirname(path))
+    image.cast(:uchar).write_to_file(path, compression: 9)
+  end
+end
+
+out = BrandImages::DEFAULT_OUT
+OptionParser.new do |opts|
+  opts.banner = "Usage: bin/brand-images [--out DIR]"
+  opts.on("--out DIR", "Write somewhere other than docs/assets/ (for previews)") { |dir| out = File.expand_path(dir) }
+end.parse!
+
+if out == BrandImages::DEFAULT_OUT && ENV["CI"].to_s.empty? && ENV["CSV_PREVIEW_BRAND_FORCE"] != "1"
+  abort "bin/brand-images writes docs/assets/ only on the pinned CI image (gh workflow run brand-images.yml). " \
+        "Use --out DIR to preview locally, or set CSV_PREVIEW_BRAND_FORCE=1 to write docs/assets/ anyway."
+end
+
+BrandImages.run(out)

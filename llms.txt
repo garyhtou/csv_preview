@@ -1,0 +1,30 @@
+# csv_preview
+
+> csv_preview is a Ruby gem that renders CSV and TSV files as preview images (PNG, JPEG or WebP) and adds an Active Storage previewer to Rails. It draws text with libvips and Pango, needs no LibreOffice, headless browser or ImageMagick, and never runs another program or opens a network connection.
+
+Beautiful CSV previews for Active Storage. No LibreOffice, no headless browser, no network.
+
+- Install: `bundle add csv_preview`. The system needs libvips 8.12+ with Pango (`apt-get install libvips` or `brew install vips`); `CsvPreview.text_supported?` returns true when ready.
+- Rails 7.2+: add `config.active_storage.previewers.unshift CsvPreview::ActiveStoragePreviewer` to `config/application.rb`. CSV and TSV blobs then work with `preview`, `representation`, `previewable?` and preprocessed variants. Previews are always PNG.
+- Thumbnails that keep the header: `resize_to_fill: [300, 300, { crop: :low }]` with libvips, `gravity: "NorthWest"` with MiniMagick.
+- Plain Ruby 3.3+: `CsvPreview.render(path_or_io)` returns PNG bytes; `CsvPreview.sample(path_or_io)` returns the cleaned cells without rendering. A String is always a file path; wrap CSV text in `StringIO`.
+- Built for untrusted uploads: it reads at most 2 MiB, stops after 5 seconds, and never runs another program or opens a network connection.
+- Errors: `CsvPreview::UnreadableInput` (not CSV text), `CsvPreview::TimeoutExceeded`, `CsvPreview::RenderFailed` (libvips missing or without Pango). In Rails they become `ActiveStorage::PreviewError`; add `ActiveStorage::PreviewImageJob.discard_on ActiveStorage::PreviewError` in a `to_prepare` block.
+- Not supported: XLSX, ODS, Numbers.
+
+## Docs
+
+- [README](https://raw.githubusercontent.com/garyhtou/csv_preview/main/README.md): installation, Rails and plain Ruby usage, options, security, FAQ
+- [Agent integration guide](https://raw.githubusercontent.com/garyhtou/csv_preview/main/skills/csv-preview/SKILL.md): exact steps for adding csv_preview to a Rails app
+- [API reference](https://rubydoc.info/gems/csv_preview)
+
+## Project
+
+- [Changelog](https://raw.githubusercontent.com/garyhtou/csv_preview/main/CHANGELOG.md)
+- [Security policy](https://raw.githubusercontent.com/garyhtou/csv_preview/main/SECURITY.md)
+- [Contributing](https://raw.githubusercontent.com/garyhtou/csv_preview/main/CONTRIBUTING.md)
+
+## Optional
+
+- [Specification](https://raw.githubusercontent.com/garyhtou/csv_preview/main/docs/spec/README.md)
+- [Visual research](https://raw.githubusercontent.com/garyhtou/csv_preview/main/docs/research/README.md)

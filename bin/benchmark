@@ -1,0 +1,62 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+# Development script (not packaged with the gem): the measurements behind the README's Performance
+# section. It times warm renders of two fixtures and CsvPreview.sample of the slowest parser input we
+# know of, the hostile shape of a million one-character lines (parsing-and-safety.md section 7.3), and
+# prints the environment it ran in. Run it with and without YJIT:
+#
+#   bundle exec bin/benchmark
+#   bundle exec ruby --yjit bin/benchmark
+#   bundle exec bin/benchmark --all-shapes   # also time every hostile 2 MiB shape, slowest first
+
+require "etc"
+require "stringio"
+
+$LOAD_PATH.unshift File.expand_path("../lib", __dir__)
+require "csv_preview"
+require_relative "../test/support/hostile_shapes"
+
+FIXTURES = File.expand_path("../test/fixtures", __dir__)
+RENDER_RUNS = 21
+SAMPLE_RUNS = 5
+SLOWEST_SHAPE = "a_lf" # "a\n" repeated to 2 MiB: 1,048,576 one-character lines
+
+def seconds
+  started = Process.clock_gettime(Process::CLOCK_MONOTONIC)
+  yield
+  Process.clock_gettime(Process::CLOCK_MONOTONIC) - started
+end
+
+def median(times) = times.sort[times.size / 2]
+
+def sample_seconds(bytes, runs) = median(Array.new(runs) { seconds { CsvPreview.sample(StringIO.new(bytes)) } })
+
+yjit = defined?(RubyVM::YJIT) && RubyVM::YJIT.enabled? ? "on" : "off"
+vips = CsvPreview.text_supported? ? Vips.version_string : "not available"
+puts "Ruby #{RUBY_VERSION} (YJIT #{yjit}), libvips #{vips}, #{RUBY_PLATFORM}, #{Etc.nprocessors} CPUs"
+
+if CsvPreview.text_supported?
+  CsvPreview.render(File.join(FIXTURES, "simple.csv")) # one-time font and Pango set-up
+  %w[wide_long.csv statement.csv].each do |name|
+    path = File.join(FIXTURES, name)
+    CsvPreview.render(path)
+    time = median(Array.new(RENDER_RUNS) { seconds { CsvPreview.render(path) } })
+    layout = CsvPreview.layout(path)
+    puts format("render %<name>s: median %<ms>d ms of %<runs>d (%<w>d by %<h>d px, %<calls>d text calls)",
+                name: name, ms: (time * 1000).round, runs: RENDER_RUNS, w: layout.width_px, h: layout.height_px,
+                calls: layout.text_calls)
+  end
+else
+  puts "render: skipped, libvips cannot draw text here"
+end
+
+shapes = HostileShapes.build
+puts format("sample of %<name>s (1,048,576 one-character lines, 2 MiB): median %<s>.2f s of %<runs>d",
+            name: SLOWEST_SHAPE, s: sample_seconds(shapes.fetch(SLOWEST_SHAPE), SAMPLE_RUNS), runs: SAMPLE_RUNS)
+
+if ARGV.include?("--all-shapes")
+  puts "every hostile shape, median of 3, slowest first:"
+  timings = shapes.to_h { |name, bytes| [name, sample_seconds(bytes, 3)] }
+  timings.sort_by { |_, time| -time }.each { |name, time| puts format("  %-40<name>s %<s>.2f s", name: name, s: time) }
+end

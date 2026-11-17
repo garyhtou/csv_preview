@@ -1,0 +1,144 @@
+{
+  "generator": "bin/brand-images",
+  "csv_preview": "0.1.0",
+  "libvips": "8.15.1",
+  "images": {
+    "brand/mark-16.png": {
+      "width": 16,
+      "height": 16
+    },
+    "brand/mark-32.png": {
+      "width": 32,
+      "height": 32
+    },
+    "brand/mark-180.png": {
+      "width": 180,
+      "height": 180
+    },
+    "brand/mark-512.png": {
+      "width": 512,
+      "height": 512
+    },
+    "brand/wordmark-light.png": {
+      "width": 771,
+      "height": 156,
+      "use": "on light backgrounds"
+    },
+    "brand/wordmark-dark.png": {
+      "width": 771,
+      "height": 156,
+      "use": "on dark backgrounds"
+    },
+    "hero.png": {
+      "width": 2048,
+      "height": 868,
+      "display_width": 720,
+      "source": "test/fixtures/wide_long.csv",
+      "options": {
+        "max_rows": 10
+      },
+      "caption": "Rendered by csv_preview 0.1.0 from `test/fixtures/wide_long.csv` (`max_rows: 10`)",
+      "reproduce": "CsvPreview.render(\"test/fixtures/wide_long.csv\", max_rows: 10)",
+      "rows_shown": 10,
+      "total_rows": 1284,
+      "columns_shown": 8,
+      "total_columns": 31,
+      "fading_column": "Card",
+      "footer": "10 of 1,284 rows · 8 of 31 columns"
+    },
+    "gallery/numbers.png": {
+      "width": 1073,
+      "height": 652,
+      "display_width": 536,
+      "source": "test/fixtures/numbers.csv",
+      "options": {},
+      "caption": "Rendered by csv_preview 0.1.0 from `test/fixtures/numbers.csv`",
+      "reproduce": "CsvPreview.render(\"test/fixtures/numbers.csv\")",
+      "rows_shown": 8,
+      "total_rows": 8,
+      "columns_shown": 6,
+      "total_columns": 6,
+      "fading_column": null,
+      "footer": null
+    },
+    "gallery/emoji_cjk.png": {
+      "width": 640,
+      "height": 436,
+      "display_width": 320,
+      "source": "test/fixtures/emoji_cjk.csv",
+      "options": {},
+      "caption": "Rendered by csv_preview 0.1.0 from `test/fixtures/emoji_cjk.csv`",
+      "reproduce": "CsvPreview.render(\"test/fixtures/emoji_cjk.csv\")",
+      "rows_shown": 5,
+      "total_rows": 5,
+      "columns_shown": 3,
+      "total_columns": 3,
+      "fading_column": null,
+      "footer": null
+    },
+    "gallery/simple.png": {
+      "width": 640,
+      "height": 364,
+      "display_width": 320,
+      "source": "test/fixtures/simple.csv",
+      "options": {},
+      "caption": "Rendered by csv_preview 0.1.0 from `test/fixtures/simple.csv`",
+      "reproduce": "CsvPreview.render(\"test/fixtures/simple.csv\")",
+      "rows_shown": 4,
+      "total_rows": 4,
+      "columns_shown": 3,
+      "total_columns": 3,
+      "fading_column": null,
+      "footer": null
+    },
+    "gallery/semicolon_decimal_comma.png": {
+      "width": 911,
+      "height": 436,
+      "display_width": 455,
+      "source": "test/fixtures/semicolon_decimal_comma.csv",
+      "options": {},
+      "caption": "Rendered by csv_preview 0.1.0 from `test/fixtures/semicolon_decimal_comma.csv`",
+      "reproduce": "CsvPreview.render(\"test/fixtures/semicolon_decimal_comma.csv\")",
+      "rows_shown": 5,
+      "total_rows": 5,
+      "columns_shown": 4,
+      "total_columns": 4,
+      "fading_column": null,
+      "footer": null
+    },
+    "gallery/thumbnails.png": {
+      "width": 1280,
+      "height": 320,
+      "display_width": 640,
+      "fixtures": [
+        "test/fixtures/wide_long.csv",
+        "test/fixtures/numbers.csv",
+        "test/fixtures/emoji_cjk.csv",
+        "test/fixtures/simple.csv"
+      ],
+      "options": [
+        {
+          "max_rows": 10
+        },
+        {},
+        {},
+        {}
+      ],
+      "recipe": "resize_to_fill: [300, 300, { crop: :low }]",
+      "caption": "Thumbnails rendered by csv_preview 0.1.0 from `test/fixtures/wide_long.csv` (`max_rows: 10`), `test/fixtures/numbers.csv`, `test/fixtures/emoji_cjk.csv`, `test/fixtures/simple.csv`, cut to 300 px with `crop: :low`"
+    },
+    "brand/social-preview.png": {
+      "width": 1280,
+      "height": 640,
+      "source": "test/fixtures/statement.csv",
+      "columns": [
+        "Transaction Date",
+        "Amount",
+        "Description",
+        "Category",
+        "Card",
+        "Merchant City"
+      ]
+    }
+  }
+}
