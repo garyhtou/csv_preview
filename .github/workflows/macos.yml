@@ -1,9 +1,10 @@
 name: macOS
 
-# The core suite on macOS with Homebrew's current libvips. For now this runs only by hand
-# (gh workflow run macos.yml --ref main); step 6 of docs/RELEASING.md switches it to run on every push
-# and pull request.
+# The core suite on macOS with Homebrew's current libvips, on every push to main and every pull request.
 on:
+  push:
+    branches: [main]
+  pull_request:
   workflow_dispatch:
 
 permissions:
