@@ -1,0 +1,10 @@
+# frozen_string_literal: true
+
+source "https://rubygems.org"
+
+gemspec path: ".."
+# The gemspec's ruby-vips floor. Vips.block_untrusted arrived in 2.2.1, but 2.2.1 requires logger without
+# declaring it, so it cannot load on Ruby 4.0 unless the bundle has logger; 2.2.2 declares it.
+gem "ruby-vips", "2.2.2"
+
+eval_gemfile "common.gemfile"

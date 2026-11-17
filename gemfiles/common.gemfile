@@ -1,0 +1,6 @@
+# frozen_string_literal: true
+
+# Test-only gems shared by every gemfile in this directory.
+gem "minitest"
+gem "rake"
+gem "yard"

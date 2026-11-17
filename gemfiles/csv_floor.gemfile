@@ -1,0 +1,10 @@
+# frozen_string_literal: true
+
+source "https://rubygems.org"
+
+gemspec path: ".."
+# The gemspec's csv floor (parsing-and-safety.md 4.13, PS-36): the Parser tests run against both ends of
+# the supported range. Ruby 3.3 ships this version as a default gem.
+gem "csv", "3.2.8"
+
+eval_gemfile "common.gemfile"

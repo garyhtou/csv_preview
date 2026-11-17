@@ -1,0 +1,8 @@
+--markup markdown
+--hide-api private
+--query '(n = object; n = n.namespace until n.root? || n.has_tag?(:api); !n.has_tag?(:api) || n.tag(:api).text != "private")'
+--readme README.md
+lib/**/*.rb
+-
+CHANGELOG.md
+SECURITY.md

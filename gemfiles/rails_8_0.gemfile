@@ -1,0 +1,12 @@
+# frozen_string_literal: true
+
+source "https://rubygems.org"
+
+gemspec path: ".."
+
+%w[railties activestorage activerecord activejob actionpack].each { |name| gem name, "~> 8.0.0" }
+gem "sqlite3", ">= 2.1"
+gem "image_processing", ">= 1.12"
+gem "mini_magick", ">= 5.1", require: false
+
+eval_gemfile "common.gemfile"
