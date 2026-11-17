@@ -6,7 +6,7 @@ Rendered pixels are not part of the API. Any release may change how previews loo
 
 ## [Unreleased]
 
-The first release, to be published as 0.1.0.
+## [0.1.0] - 2026-11-17
 
 ### Added
 
@@ -21,4 +21,5 @@ The first release, to be published as 0.1.0.
 - Bundled Inter 4.1 Regular and SemiBold fonts under the SIL Open Font License 1.1, and greyscale text antialiasing on every host.
 - An integration guide for AI coding agents, packaged with the gem as an Agent Skill in `skills/csv-preview/SKILL.md`.
 
-[Unreleased]: https://github.com/garyhtou/csv_preview/commits/main
+[Unreleased]: https://github.com/garyhtou/csv_preview/compare/v0.1.0...HEAD
+[0.1.0]: https://github.com/garyhtou/csv_preview/releases/tag/v0.1.0
