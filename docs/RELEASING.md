@@ -28,7 +28,7 @@ The description is the copy deck's GitHub description (spec 1.3, used word for w
 ```sh
 gh repo edit garyhtou/csv_preview \
   --description "Beautiful CSV previews for Ruby and Rails. Renders CSV and TSV files to PNG, JPEG or WebP with libvips and adds an Active Storage previewer. No LibreOffice, headless browser or network." \
-  --homepage "https://rubydoc.info/gems/csv_preview" \
+  --homepage "https://rubygems.org/gems/csv_preview" \
   --add-topic ruby,ruby-gem,rails,ruby-on-rails,activestorage,active-storage,csv,tsv,csv-preview,file-preview,preview,thumbnail,thumbnails,thumbnail-generator,libvips,vips,pango,image-generation
 ```
 

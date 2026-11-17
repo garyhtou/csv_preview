@@ -419,7 +419,7 @@ Notes:
 ### 4.3 GitHub About
 
 - **Description:** the GitHub description from the copy deck (under 350 characters).
-- **Website:** `https://rubydoc.info/gems/csv_preview` until a docs site exists.
+- **Website:** `https://rubygems.org/gems/csv_preview` until a docs site exists. The planned docs site is hosted on GitHub Pages from this repository; when it ships, it becomes the website and the gemspec's `homepage_uri`.
 - **Topics** (GitHub allows at most 20, lowercase letters, digits and hyphens, 50 characters each ([GitHub Docs](https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/classifying-your-repository-with-topics))): `ruby`, `ruby-gem`, `rails`, `ruby-on-rails`, `activestorage`, `active-storage`, `csv`, `tsv`, `csv-preview`, `file-preview`, `preview`, `thumbnail`, `thumbnails`, `thumbnail-generator`, `libvips`, `vips`, `pango`, `image-generation`. Two slots stay free for later (for example `xlsx` if spreadsheet input ships).
 - **Sidebar:** show Releases; hide Packages and Deployments (empty sections look unfinished).
 - **Releases:** a GitHub Release per tag whose notes are the CHANGELOG entry.
