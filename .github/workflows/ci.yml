@@ -51,7 +51,7 @@ jobs:
         run: |
           sudo apt-get install -y fonts-inter
           fc-list :family=Inter file | grep .
-      - uses: ruby/setup-ruby@b3aaceaef7e0ee231b499e7b5f49c03fc1d32199 # v1.338.0
+      - uses: ruby/setup-ruby@be3c7df29b3349ec6bcfc6b4792f1cf9f5237d18 # v1.343.0
         with:
           ruby-version: ${{ matrix.ruby }}
           bundler-cache: true
@@ -92,7 +92,7 @@ jobs:
       - name: Use the locked-down ImageMagick policy
         if: matrix.variant_processor == 'mini_magick'
         run: echo "MAGICK_CONFIGURE_PATH=$GITHUB_WORKSPACE/test/support/imagemagick" >> "$GITHUB_ENV"
-      - uses: ruby/setup-ruby@b3aaceaef7e0ee231b499e7b5f49c03fc1d32199 # v1.338.0
+      - uses: ruby/setup-ruby@be3c7df29b3349ec6bcfc6b4792f1cf9f5237d18 # v1.343.0
         with:
           ruby-version: ${{ matrix.ruby }}
           bundler-cache: true
